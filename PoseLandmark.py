@@ -42,8 +42,10 @@ class PoseLandmark():
             if face_right:
                 self.POSE_CONNECTIONS = [
                     # Custom join
-                    (self.RIGHT_SHOULDER, self.RIGHT_EAR),
+                    # (self.RIGHT_SHOULDER, self.RIGHT_EAR),
+                    (self.RIGHT_SHOULDER, self.RIGHT_EYE_OUTER),
                     (self.RIGHT_SHOULDER, self.NOSE),
+                    (self.RIGHT_EAR, self.RIGHT_EYE_OUTER),
                     (self.RIGHT_SHOULDER, self.RIGHT_ELBOW),
                     (self.RIGHT_ELBOW, self.RIGHT_WRIST),
                     (self.RIGHT_WRIST, self.RIGHT_INDEX),
