@@ -48,7 +48,7 @@ def add_fps(frame, prev_time, frame_num):
     return prev_time
 
 
-class PoseDetector():
+class PoseDetector:
 
     def __init__(self, static_image_mode=False, model_complexity=1, smooth=True,
                  detection_conf=0.5, tracking_conf=0.5):
@@ -98,8 +98,8 @@ class PoseDetector():
         # Dictionary storing the 3 frames from each rep (start, middle, end)
         self.lowest_pos_angle = 0
         self.prev_rep_percentage = 0
+        self.rep_top, self.rep_middle, self.rep_bottom = 0, 0, 0
         self.down_count = 0
-        self.rep_top, self.rep_middle, self.rep_bottom = 0, 0,0
         self.rep_frames = {}
 
     def find_box_coordinates(self, frame):
@@ -196,13 +196,13 @@ class PoseDetector():
         self.frame_angles["Knee"] = angle
 
         if reps:
-            self.rep_counter(angle)
+            self.rep_counter(angle, frame_num)
 
     # Issues if the camera angle is slight off angle, and knee doesnt get to > 90 degrees
     # Maybe can return bottom of squat based of bound box and max knee angle
     # Maybe check if e.g. left foot index x is further ahead of right foot index (for face right)
     # If it is, indicates the the angle of camera is slightly off side
-    def rep_counter(self, angle):
+    def rep_counter(self, angle, frame_num):
         # Calc percentage of way through rep, based off knee angle; 110 knee angle min for good squat
         rep_percentage = np.interp(angle, (15, 110), (0, 100))
         print(angle, rep_percentage)
@@ -213,6 +213,18 @@ class PoseDetector():
                 self.down_count += 1
         else:
             self.down_count = 0
+
+        if self.squat_direction == "Down":
+            self.rep_top = frame_num - self.down_count
+        if self.squat_direction == "Up":
+            knee_angle = self.frame_angles["Knee"]
+            if knee_angle > self.lowest_pos_angle:
+                self.lowest_pos_angle = knee_angle
+                # Add frame_num to rep frame data
+                self.rep_bottom = frame_num
+        self.rep_middle = int((self.rep_bottom - self.rep_top)/2 + self.rep_top)
+        self.rep_frames[int(self.count + 1)] = {"Top": self.rep_top, "Middle": self.rep_middle, "Bottom": self.rep_bottom}
+        print(self.rep_frames)
 
         # Check how far through rep squatter is
         if rep_percentage == 100:
@@ -228,22 +240,6 @@ class PoseDetector():
                 self.down_count = 0
         # Set the previous rep_percentage for comparison with next frame to determine starting frame of squat
         self.prev_rep_percentage = rep_percentage
-
-    def grab_rep_frames(self, frame_num):
-        rep_number = int(self.count + 1)
-        if self.squat_direction == "Down":
-            self.rep_top = frame_num - self.down_count
-        # Save frame for bottom of squat (once min req depth has been found, keep checking if go deeper)
-        if self.squat_direction == "Up":
-            knee_angle = self.pose_data[frame_num][2]["Knee"]
-            if knee_angle > self.lowest_pos_angle:
-                self.lowest_pos_angle = knee_angle
-                # Add frame_num to rep frame data
-                self.rep_bottom = frame_num
-                rep_number -= 1
-                print(rep_number)
-        if self.count % 1 == 0:
-            self.rep_frames[rep_number] = {"Top": self.rep_top, "Bottom": self.rep_bottom}
 
     # Determine whether squatter is facing left or right. Default is right
     # Needs work to improve for e.g. AC_FSL.mp4
@@ -293,12 +289,11 @@ class PoseDetector():
                     # If the center of the circle is within the detected person box
                     if box_x_min < x < box_x_max:
                         cv2.circle(frame, (x, y), r, (0, 255, 0), 3)
-                        cv2.circle(frame, (x, y), 2, (0, 0, 255), 3)
+                        # cv2.circle(frame, (x, y), 2, (0, 0, 255), 3)
                         if track:
                             self.barbell_pts.appendleft((x, y))
         else:
             self.no_circle += 1
-        # return frame
 
     def draw_bar_path(self, frame):
         for i in range(1, len(self.barbell_pts)):
@@ -368,6 +363,7 @@ class PoseDetector():
             self.draw_angles(frame_num, reps=True)
             # Add angle data to pose_data dictionary
             self.pose_data[frame_num] = (frame, self.frame_landmarks, self.frame_angles)
+
             # Add rep count to frame
             cv2.rectangle(frame, (0, 0), (200, 50), (255, 0, 0), -1)
             cv2.putText(frame, "Reps: " + str(int(self.count)), (10, 30),
@@ -376,10 +372,6 @@ class PoseDetector():
             # Detect barbell plates for path tracking
             self.detect_plates(frame, 0.35, 0.45, track=True)
             frame = self.draw_bar_path(frame)
-
-            # Find bottom of squat
-            self.grab_rep_frames(frame_num)
-            print(self.rep_frames)
 
             # Pin fps to frame
             prev_time = add_fps(frame, prev_time, frame_num)
@@ -390,11 +382,21 @@ class PoseDetector():
             if key == 'q' or key == 27:
                 break
 
-        while True:
-            cv2.imshow("test Frame", self.pose_data[580][0])
-            cv2.waitKey(10)
-            cv2.imshow("test Frame 2", self.pose_data[150][0])
-            cv2.waitKey(10)
+        # Delete last rep_frame entry if it is not a full rep, i.e. doesn't drop down
+        if len(self.rep_frames) > 1:
+            if len(self.rep_frames) > self.count:
+                self.rep_frames.popitem()
+        # print(self.rep_frames)
+
+        # while True:
+        #     for rep_number in self.rep_frames:
+        #         num = self.rep_frames[rep_number]["Top"]
+        #         cv2.imshow("Top rep " + str(rep_number), self.pose_data[num][0])
+        #         cv2.waitKey(1)
+        #         num = self.rep_frames[rep_number]["Bottom"]
+        #         cv2.imshow("Bottom rep " + str(rep_number), self.pose_data[num][0])
+        #         cv2.waitKey(1)
+
 
 
 def main():
