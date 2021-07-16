@@ -84,6 +84,18 @@ class PoseLandmark():
                     self.RIGHT_ANKLE
                     # self.RIGHT_HEEL
                 ]
+
+                self.ANKLE_ANGLE_CONNECTIONS = [
+                    self.RIGHT_KNEE,
+                    self.RIGHT_ANKLE,
+                    self.RIGHT_FOOT_INDEX
+                ]
+
+                self.DORSI_ANGLE_CONNECTIONS = [
+                    self.RIGHT_KNEE,
+                    self.RIGHT_HEEL,
+                    self.RIGHT_FOOT_INDEX
+                ]
             else:
                 self.POSE_CONNECTIONS = [
                     # Custom join
@@ -126,4 +138,16 @@ class PoseLandmark():
                     self.LEFT_KNEE,
                     self.LEFT_ANKLE
                     # self.LEFT_HEEL
+                ]
+
+                self.ANKLE_ANGLE_CONNECTIONS = [
+                    self.LEFT_KNEE,
+                    self.LEFT_ANKLE,
+                    self.LEFT_FOOT_INDEX
+                ]
+
+                self.DORSI_ANGLE_CONNECTIONS = [
+                    self.LEFT_KNEE,
+                    self.LEFT_HEEL,
+                    self.LEFT_FOOT_INDEX
                 ]
