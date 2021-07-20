@@ -85,6 +85,8 @@ class PoseDetector:
         self.pose_data = {}
         # Sets the orientation of the video
         self.face_right = True
+        # for storing the start of squat heel and toe position for more accurate dorsiflexion
+        self.start_heel_toe = []
 
         # Rep count variable
         self.count = 0
@@ -155,7 +157,7 @@ class PoseDetector:
                     cv2.circle(frame, (cx, cy), 5, (255, 0, 0), cv2.FILLED)
         return frame_landmarks
 
-    def find_angles(self, frame_num, p1, p2, p3, knee=True, draw=True):
+    def find_angles(self, frame_num, p1, p2, p3, knee=True, dorsi=False, draw=True):
         # Get the landmarks for each frame
         if p1 in self.pose_data[frame_num][1] and p2 in self.pose_data[frame_num][1] \
                 and p3 in self.pose_data[frame_num][1]:
@@ -171,9 +173,15 @@ class PoseDetector:
             if self.face_right:
                 if knee:
                     angle = angle - 180
+                if dorsi:
+                    angle = 90 - angle
+                    self.start_heel_toe = [(x2, y2), (x3, y3)]
             else:
                 if knee:
                     angle = 180 - angle
+                elif dorsi:
+                    angle = 90 - angle
+                    self.start_heel_toe = [(x2, y2), (x3, y3)]
                 else:
                     # Angle goes negative when hip landmark drops below knee?
                     if angle < 0:
@@ -182,37 +190,44 @@ class PoseDetector:
                         angle = 360 - angle
 
             if draw:
-                cv2.line(frame, (x1, y1), (x2, y2), (255, 255, 255), 3)
-                cv2.line(frame, (x3, y3), (x2, y2), (255, 255, 255), 3)
-                cv2.circle(frame, (x1, y1), 10, (0, 0, 255), cv2.FILLED)
-                cv2.circle(frame, (x1, y1), 15, (0, 0, 255), 2)
-                cv2.circle(frame, (x2, y2), 10, (0, 0, 255), cv2.FILLED)
-                cv2.circle(frame, (x2, y2), 15, (0, 0, 255), 2)
-                cv2.circle(frame, (x3, y3), 10, (0, 0, 255), cv2.FILLED)
-                cv2.circle(frame, (x3, y3), 15, (0, 0, 255), 2)
-                cv2.putText(frame, str(int(angle)), (x2 - 80, y2 + 10),
-                            cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
+                if not dorsi:
+                    cv2.line(frame, (x1, y1), (x2, y2), (255, 255, 255), 3)
+                    # line1_len = math.hypot(x2 - x1, y2 - y1)
+                    # cv2.putText(frame, str(int(line1_len)), (int((x2-x1)/2 + y1), int((y2-y1)/2 + y1)),
+                    #             cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
+                    cv2.line(frame, (x3, y3), (x2, y2), (255, 255, 255), 3)
+                    # line2_len = math.hypot(x3 - x2, y3 - y2)
+                    # cv2.putText(frame, str(int(line2_len)), (int((x3 - x2) / 2 + x2), int((y3 - y2) / 2 + y2)),
+                    #             cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
+                    cv2.circle(frame, (x1, y1), 10, (0, 0, 255), cv2.FILLED)
+                    cv2.circle(frame, (x1, y1), 15, (0, 0, 255), 2)
+                    cv2.circle(frame, (x2, y2), 10, (0, 0, 255), cv2.FILLED)
+                    cv2.circle(frame, (x2, y2), 15, (0, 0, 255), 2)
+                    cv2.circle(frame, (x3, y3), 10, (0, 0, 255), cv2.FILLED)
+                    cv2.circle(frame, (x3, y3), 15, (0, 0, 255), 2)
+                    cv2.putText(frame, str(int(angle)), (x2 - 80, y2 + 10),
+                                cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
+                else:
+                    cv2.circle(frame, (x2, y2), 8, (0, 255, 0), cv2.FILLED)
+                    cv2.circle(frame, (x3, y3), 8, (0, 255, 0), cv2.FILLED)
+                    cv2.putText(frame, "Dorsi: " + str(int(angle)), (x2 - 150, y2 + 10),
+                                cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
             return angle
 
-    def draw_angles(self, frame_num, reps=True):
+#   Feel like this might be better of renamed as something else
+    def process_angles(self, frame_num, reps=True):
         frame_angles = {}
         p1, p2, p3 = self.landmark_connections.HIP_ANGLE_CONNECTIONS
-        angle = self.find_angles(frame_num, p1, p2, p3, knee=False, draw=True)
+        angle = self.find_angles(frame_num, p1, p2, p3, knee=False, dorsi=False, draw=True)
         frame_angles["Hip"] = angle
         self.frame_angles["Hip"] = angle
-        # Improvement for dorsi angle - take heel and toe position at the start of the squat
-        p1, p2, p3 = self.landmark_connections.DORSI_ANGLE_CONNECTIONS
-        angle = self.find_angles(frame_num, p1, p2, p3, knee=False, draw=False)
-        # Dorsiflexion is measured up from the base of the right angle formed between knee, heel, index angle
-        if angle is not None:
-            angle = 90 - angle
-        frame_angles["Dorsi"] = angle
-        self.frame_angles["Dorsi"] = angle
+
         p1, p2, p3 = self.landmark_connections.KNEE_ANGLE_CONNECTIONS
-        angle = self.find_angles(frame_num, p1, p2, p3, knee=True, draw=True)
+        angle = self.find_angles(frame_num, p1, p2, p3, knee=True, dorsi=False, draw=True)
         frame_angles["Knee"] = angle
         self.frame_angles["Knee"] = angle
 
+        # Count reps based off the knee angle of the squatter
         if reps:
             self.rep_counter(angle, frame_num)
 
@@ -269,9 +284,6 @@ class PoseDetector:
         self.find_positions(frame)
         # Extract x values for the shoulders and nose to compare
         if len(self.landmark_list) != 0:
-            # right_shoulder_x = self.landmark_list[self.landmark_connections.RIGHT_SHOULDER][1]
-            # left_shoulder_x = self.landmark_list[self.landmark_connections.LEFT_SHOULDER][1]
-            # nose_x = self.landmark_list[self.landmark_connections.NOSE][1]
             right_heel_x = self.landmark_list[self.landmark_connections.RIGHT_HEEL][1]
             left_heel_x = self.landmark_list[self.landmark_connections.LEFT_HEEL][1]
             right_foot_index_x = self.landmark_list[self.landmark_connections.RIGHT_FOOT_INDEX][1]
@@ -280,10 +292,6 @@ class PoseDetector:
             if (right_foot_index_x > right_heel_x) or (left_foot_index_x > left_heel_x):
                 self.face_right = True
             else:
-                # if (nose_x > right_shoulder_x) or (nose_x > left_shoulder_x):
-                #     print("face right2")
-                #     self.face_right = True
-                # else:
                 self.face_right = False
 
     def detect_plates(self, frame, min_plate_pct, max_plate_pct, track=False):
@@ -330,6 +338,45 @@ class PoseDetector:
             cv2.line(frame, self.barbell_pts[i - 1], self.barbell_pts[i], (0, 0, 255), thickness)
         return frame
 
+    def add_dorsi_points(self, frame_num, draw=True):
+        frame = self.pose_data[frame_num][0]
+        p1 = self.landmark_connections.DORSI_ANGLE_CONNECTIONS[0]
+        x1, y1 = self.pose_data[frame_num][1][p1][1:]
+        if len(self.start_heel_toe) == 2:
+            (x2, y2), (x3, y3) = self.start_heel_toe
+
+            # Get the angle between the points in question
+            angle = math.degrees(math.atan2(y3 - y2, x3 - x2) -
+                                 math.atan2(y1 - y2, x1 - x2))
+            angle = 90 - angle
+            self.pose_data[frame_num][2]["Dorsi"] = angle
+
+            if draw:
+                cv2.circle(frame, (x1, y1), 5, (0, 255, 0), cv2.FILLED)
+                cv2.circle(frame, (x2, y2), 5, (0, 255, 0), cv2.FILLED)
+                cv2.circle(frame, (x3, y3), 5, (0, 255, 0), cv2.FILLED)
+                cv2.putText(frame, "Dorsi: " + str(int(angle)), (x2 - 180, y2 + 10),
+                            cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
+
+    def knee_tracking(self, frame_num, dash_len=5):
+        frame = self.pose_data[frame_num][0]
+        hip_num = self.landmark_connections.KNEE_ANGLE_CONNECTIONS[0]
+        knee_num = self.landmark_connections.KNEE_ANGLE_CONNECTIONS[1]
+        hip_x, hip_y = self.pose_data[frame_num][1][hip_num][1:]
+        knee_x, knee_y = self.pose_data[frame_num][1][knee_num][1:]
+        toe_x, toe_y = self.start_heel_toe[1]
+        femur_len = math.hypot(knee_x - hip_x, knee_y - hip_y)
+        vert_distance = toe_y - knee_y
+        # Add extra dashes to make sure its clearer where the knee line falls.
+        num_dashes = int(vert_distance / dash_len) + 4
+        dash_y = knee_y
+        # Knee landmark isn't at the edge of knee so add extra to make line start at edge of knee
+        knee_x += int(femur_len * 0.20)
+        for i in range(1, num_dashes):
+            if i % 2 == 0:
+                cv2.line(frame, (knee_x, dash_y), (knee_x, dash_y + dash_len), (255, 255, 255), 3)
+            dash_y += dash_len
+
     def process_video(self, cap, seconds=3):
         fps = cap.get(cv2.CAP_PROP_FPS)
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -374,18 +421,17 @@ class PoseDetector:
             # Resize the frame so less computationally taxing to process. Perhaps make even smaller?
             frame = resize_frame(frame)
             # Utilize mediapipe person detection model to identify landmarks in each frame
-            frame = self.find_pose(frame, draw=False, box=True)
+            frame = self.find_pose(frame, draw=False, box=False)
             # Store orientation specific landmarks from previous step
             frame_landmarks = self.find_positions(frame, specific=True)
             # Store frame and pose data into dictionary
             self.pose_data[frame_num] = (frame, frame_landmarks)
 
             # Find relevant joint angles and draw connections
-            frame_angles = self.draw_angles(frame_num, reps=True)
+            frame_angles = self.process_angles(frame_num, reps=True)
             # Add angle data to pose_data dictionary
-            print(frame_angles)
+            # print(frame_angles)
             self.pose_data[frame_num] = (frame, frame_landmarks, frame_angles)
-            # print("frame: ", frame_num, ": ", self.pose_data[frame_num][2:])
 
             # Add rep count to frame
             cv2.rectangle(frame, (0, 0), (200, 50), (255, 0, 0), -1)
@@ -410,20 +456,28 @@ class PoseDetector:
             if len(self.rep_frames) > self.count:
                 self.rep_frames.popitem()
 
+        # Add dorsiflexion points to frame
         while True:
             for rep_number in self.rep_frames:
-                # num = self.rep_frames[rep_number]["Top"]
-                # cv2.imshow("Top rep " + str(rep_number), self.pose_data[num][0])
-                # cv2.waitKey(1)
-                # num = self.rep_frames[rep_number]["Middle"]
-                # cv2.imshow("Middle rep " + str(rep_number), self.pose_data[num][0])
-                # cv2.waitKey(1)
+                num = self.rep_frames[rep_number]["Top"]
+                p1, p2, p3 = self.landmark_connections.DORSI_ANGLE_CONNECTIONS
+                angle = self.find_angles(num, p1, p2, p3, knee=False, dorsi=True, draw=False)
+                self.pose_data[num][2]["Dorsi"] = angle
+                cv2.imshow("Top rep " + str(rep_number), self.pose_data[num][0])
+                cv2.waitKey(1)
+                num = self.rep_frames[rep_number]["Middle"]
+                self.add_dorsi_points(num)
+                self.knee_tracking(num, dash_len=7)
+                cv2.imshow("Middle rep " + str(rep_number), self.pose_data[num][0])
+                cv2.waitKey(1)
                 num = self.rep_frames[rep_number]["Bottom"]
+                self.add_dorsi_points(num)
+                self.knee_tracking(num, dash_len=7)
                 cv2.imshow("Bottom rep " + str(rep_number), self.pose_data[num][0])
                 key = cv2.waitKey(1)
             if key == 'q' or key == 27:
                 break
-        return self.rep_frames, self.pose_data, self.face_right
+        return self.rep_frames, self.pose_data, self.face_right, self.start_heel_toe
 
 
 def main():
@@ -433,21 +487,29 @@ def main():
     # cap = cv2.VideoCapture('Videos/GW_BSEL.mp4')
     # cap = cv2.VideoCapture('Videos/GW_BS1L.mp4')
     # cap = cv2.VideoCapture('Videos/GW_BS2.mp4')
-    # cap = cv2.VideoCapture('Videos/GW_BS2L.mp4')
-    cap = cv2.VideoCapture('Videos/GW_BS3L.mp4')
+    cap = cv2.VideoCapture('Videos/GW_BS2L.mp4')
+    # cap = cv2.VideoCapture('Videos/GW_BS3L.mp4')
     # cap = cv2.VideoCapture('Videos/HS_BWS.mp4')
     # cap = cv2.VideoCapture('Videos/HS_BWSL.mp4')
     # cap = cv2.VideoCapture('Videos/AC_BS.mp4')
     # cap = cv2.VideoCapture('Videos/AC_BS2L.mp4')
     # cap = cv2.VideoCapture('Videos/AC_BS3L.mp4')
     # cap = cv2.VideoCapture('Videos/AC_BS4L.mp4')
-    # cap = cv2.VideoCapture('Videos/AC_FSL.mp4')
+    # cap = cv2.VideoCapture('Videos/AC_FSL.mp4
+    # ')
     # cap = cv2.VideoCapture(0)
     detector = PoseDetector()
-    rep_frames, pose_data, face_right = detector.process_video(cap, 3)
-    message = fm.check_knee_angle(rep_frames, pose_data, face_right)
-    print("Squat depth feedback:\n ", message)
+    rep_frames, pose_data, face_right, start_heel_toe = detector.process_video(cap, 3)
+    print(pose_data[562][1:])
+    print(pose_data[563][1:])
+    print(pose_data[687][1:])
+    rep_number = 1  # Add a loop when needing to evaluate all reps
+    start_message = fm.check_knee_angle(rep_frames, pose_data, rep_number, "Top", face_right)
+    print("Starting position feedback:\n", start_message)
+    depth_message = fm.check_knee_angle(rep_frames, pose_data, rep_number, "Bottom", face_right)
+    print("Squat depth feedback:\n ", depth_message)
     print("Now lets look at the rest of your squat:\n")
+    # Add elbow position feedback?
 
 
 if __name__ == "__main__":
