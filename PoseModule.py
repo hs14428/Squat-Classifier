@@ -11,7 +11,6 @@ from collections import deque
 # Mediapipe recommends at least 480h x 360w resolution. Lower res == improved latency
 def resize_frame(frame):
     h, w, c = frame.shape
-    # print("start: ",frame.shape)
     if h < 480 and w < 360:
         dimensions = (360, 480)
         frame = cv2.resize(frame, dimensions)
@@ -33,7 +32,6 @@ def resize_frame(frame):
     # Manual resize for testing
     if h == 1280:
         frame = cv2.resize(frame, (480, 848))
-    # print("end: ", frame.shape)
     return frame
 
 
@@ -240,7 +238,7 @@ class PoseDetector:
     def rep_counter(self, angle, frame_num):
         # Calc percentage of way through rep, based off knee angle; 110 knee angle min for good squat
         rep_percentage = np.interp(angle, (20, 110), (0, 100))
-        print(angle, rep_percentage)
+        # print(angle, rep_percentage)
 
         # Count the number of frames down to required depth the squatter takes
         if rep_percentage >= self.prev_rep_percentage - 0.5:
@@ -260,7 +258,6 @@ class PoseDetector:
         self.rep_middle = int((self.rep_bottom - self.rep_top) / 2 + self.rep_top)
         self.rep_frames[int(self.count + 1)] = {"Top": self.rep_top, "Middle": self.rep_middle,
                                                 "Bottom": self.rep_bottom}
-        # print(self.rep_frames)
 
         # Check how far through rep squatter is
         if rep_percentage == 100:
@@ -376,6 +373,7 @@ class PoseDetector:
             if i % 2 == 0:
                 cv2.line(frame, (knee_x, dash_y), (knee_x, dash_y + dash_len), (255, 255, 255), 3)
             dash_y += dash_len
+        cv2.line(frame, (toe_x, toe_y), (toe_x + 5, toe_y), (255, 0, 0), 3)
 
     def process_video(self, cap, seconds=3):
         fps = cap.get(cv2.CAP_PROP_FPS)
@@ -430,7 +428,6 @@ class PoseDetector:
             # Find relevant joint angles and draw connections
             frame_angles = self.process_angles(frame_num, reps=True)
             # Add angle data to pose_data dictionary
-            # print(frame_angles)
             self.pose_data[frame_num] = (frame, frame_landmarks, frame_angles)
 
             # Add rep count to frame
@@ -500,15 +497,32 @@ def main():
     # cap = cv2.VideoCapture(0)
     detector = PoseDetector()
     rep_frames, pose_data, face_right, start_heel_toe = detector.process_video(cap, 3)
-    print(pose_data[562][1:])
-    print(pose_data[563][1:])
-    print(pose_data[687][1:])
     rep_number = 1  # Add a loop when needing to evaluate all reps
-    start_message = fm.check_knee_angle(rep_frames, pose_data, rep_number, "Top", face_right)
-    print("Starting position feedback:\n", start_message)
-    depth_message = fm.check_knee_angle(rep_frames, pose_data, rep_number, "Bottom", face_right)
-    print("Squat depth feedback:\n ", depth_message)
-    print("Now lets look at the rest of your squat:\n")
+
+    # Squat start feedback
+    knees_start_message = fm.check_knee_angle(rep_frames, pose_data, rep_number, "Top", face_right)
+    hips_start_message = fm.check_hip_angle(rep_frames, pose_data, rep_number, "Top")
+    print("Starting position feedback - Rep", rep_number, ":")
+    print("Knees -", knees_start_message, "\nHips -", hips_start_message)
+
+    # Squat lowering feedback
+    hips_lowering_message = fm.check_hip_angle(rep_frames, pose_data, rep_number, "Middle")
+    print("\nSquat lowering phase feedback:")
+    print("Hips -", hips_lowering_message)
+
+    # Squat depth feedback
+    knees_depth_message = fm.check_knee_angle(rep_frames, pose_data, rep_number, "Bottom", face_right)
+    hips_depth_message = fm.check_hip_angle(rep_frames, pose_data, rep_number, "Bottom")
+    print("\nSquat depth feedback:")
+    print("Depth -", knees_depth_message, "\nHips -", hips_depth_message)
+
+    # Additional feedback, e.g. ankles and knee tracking
+    dorsi_depth_message = fm.check_dorsi_flexion(rep_frames, pose_data, rep_number, "Bottom")
+    knee_tracking_message = fm.check_knee_tracking(rep_frames, pose_data, rep_number, "Bottom", start_heel_toe, face_right)
+    print("\nNow lets look at some other aspects of your squat:")
+    print("Ankle dorsiflexion -", dorsi_depth_message)
+    print("Knee tracking -", knee_tracking_message)
+
     # Add elbow position feedback?
 
 

@@ -57,6 +57,8 @@ def check_hip_angle(rep_frames, pose_data, rep_number, frame_position):
         if hip_angle < 155:
             return "This isn't a good morning! Keep your back upright before descent. As you descend your back will " \
                    "naturally hinge forward."
+        else:
+            return "Hip's all good."
 
     if frame_position == "Middle":
         frame_num = rep_frames[rep_number][frame_position]
@@ -75,7 +77,7 @@ def check_hip_angle(rep_frames, pose_data, rep_number, frame_position):
         if hip_angle < 40:
             return "You might be hinging too far forward here... Beware of toppling over."
         elif 40 <= hip_angle <= 70:
-            return "Good hip hinge at depth.\nRemember, different body types have different optimal hip/back angles, " \
+            return "Good hip hinge at depth. Remember, different body types have different optimal hip/back angles, " \
                    "but don't lean too far forward and keep the barbell centered over your feet."
         elif hip_angle > 70:
             return "Watch your hip/back angle. You look quite upright; you might be at risk of falling backwards."
@@ -93,12 +95,35 @@ def check_dorsi_flexion(rep_frames, pose_data, rep_number, frame_position):
             return "Your ankle dorsiflexion looks good. Good ankle mobility helps facilitate squatting to depth and " \
                    "efficient transference of forces throughout the body."
         else:
-            return "Great ankle mobility! This is conducive to squatting below parallel and efficient transference of " \
+            return "Great ankle mobility! This is conducive to squatting below parallel and efficient transference of "\
                    "forces throughout the body."
 
 
-def check_knee_tracking(rep_frames, pose_data, rep_number, frame_position, start_heel_toe):
+def check_knee_tracking(rep_frames, pose_data, rep_number, frame_position, start_heel_toe, face_right=True):
+    landmark_connections = pl.PoseLandmark(face_right=face_right, filter_landmarks=True)
     if frame_position == "Bottom":
         frame_num = rep_frames[rep_number][frame_position]
-        toe_x, toe_y = start_heel_toe[1:]
-        knee_x, knee_y = self.pose_data[frame_num][1][knee_num][1:]
+        if face_right:
+            knee_num = landmark_connections.RIGHT_KNEE
+        else:
+            knee_num = landmark_connections.LEFT_KNEE
+        toe_x, toe_y = start_heel_toe[1]
+        knee_x, knee_y = pose_data[frame_num][1][knee_num][1:]
+        if face_right:
+            toe_knee_gap = knee_x - toe_x
+        else:
+            toe_knee_gap = toe_x - knee_x
+
+        if toe_knee_gap > 25:
+            return "Watch out for excessive forward knee movement. This runs the risk of increased knee torque."
+        elif 10 <= toe_knee_gap <= 25:
+            return 'Your knees track slightly over your toes. This shows good mobility, but if done excessively ' \
+                   'can lead to increased knee pain. '
+        elif 0 <= toe_knee_gap < 10:
+            return "Your knees are aligned over your toes. This places less stress on the lower back. Good work."
+        elif toe_knee_gap < 0:
+            return "Your knees aren't quite tracking over your toes, thus increasing force through the lower back "\
+                   "and hip region. Try to work on ankle mobility to improve this area. "
+
+
+
