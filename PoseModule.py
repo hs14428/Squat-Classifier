@@ -361,6 +361,8 @@ class PoseDetector:
         knee_num = self.landmark_connections.KNEE_ANGLE_CONNECTIONS[1]
         hip_x, hip_y = self.pose_data[frame_num][1][hip_num][1:]
         knee_x, knee_y = self.pose_data[frame_num][1][knee_num][1:]
+        print(self.start_heel_toe)
+        print(frame_num)
         toe_x, toe_y = self.start_heel_toe[1]
         femur_len = math.hypot(knee_x - hip_x, knee_y - hip_y)
         vert_distance = toe_y - knee_y
@@ -492,9 +494,9 @@ def main():
     # cap = cv2.VideoCapture('Videos/AC_BS2L.mp4')
     # cap = cv2.VideoCapture('Videos/AC_BS3L.mp4')
     # cap = cv2.VideoCapture('Videos/AC_BS4L.mp4')
-    # cap = cv2.VideoCapture('Videos/AC_FSL.mp4
-    # ')
+    # cap = cv2.VideoCapture('Videos/AC_FSL.mp4')
     # cap = cv2.VideoCapture(0)
+
     detector = PoseDetector()
     rep_frames, pose_data, face_right, start_heel_toe = detector.process_video(cap, 3)
     rep_number = 1  # Add a loop when needing to evaluate all reps
@@ -522,6 +524,7 @@ def main():
     print("\nNow lets look at some other aspects of your squat:")
     print("Ankle dorsiflexion -", dorsi_depth_message)
     print("Knee tracking -", knee_tracking_message)
+    return "hello"
 
     # Add elbow position feedback?
 
