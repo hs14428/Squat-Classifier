@@ -1,3 +1,5 @@
+import shutil
+
 import cv2
 import mediapipe as mp
 import time
@@ -94,6 +96,8 @@ class PoseDetector:
         self.barbell_pts_len = 45
         # Set up the barbell tracking points collection with maxLen. > maxLen points == remove from tail end of points
         self.barbell_pts = deque(maxlen=self.barbell_pts_len)
+        # Previous weight plate center x,y
+        self.prev_plate_x_y = (0, 0)
         # Count for frames without circle/plate detected used to clear tracking queue
         self.no_circle = 0
         # Dictionary storing the 3 frames from each rep (start, middle, end)
@@ -101,7 +105,9 @@ class PoseDetector:
         self.prev_rep_percentage = 0
         self.rep_top, self.rep_middle, self.rep_bottom = 0, 0, 0
         self.down_count = 0
+        self.up_count = 0
         self.rep_frames = {}
+        self.original_size = (0, 0)
 
     def find_box_coordinates(self, frame):
         h, w, c = frame.shape
@@ -130,11 +136,11 @@ class PoseDetector:
         self.results = self.pose.process(frame_rgb)
         self.landmarks = self.results.pose_landmarks
         pose_connections = self.landmark_connections.POSE_CONNECTIONS
+        self.min_box_values, self.max_box_values = self.find_box_coordinates(frame)
         if self.landmarks:
             if draw:
                 self.mpDraw.draw_landmarks(frame, self.landmarks, pose_connections)
             if box:
-                self.min_box_values, self.max_box_values = self.find_box_coordinates(frame)
                 cv2.rectangle(frame, self.min_box_values, self.max_box_values, (0, 255, 0), 2)
         return frame
 
@@ -236,16 +242,25 @@ class PoseDetector:
     # Maybe check if e.g. left foot index x is further ahead of right foot index (for face right)
     # If it is, indicates the the angle of camera is slightly off side
     def rep_counter(self, angle, frame_num):
-        # Calc percentage of way through rep, based off knee angle; 110 knee angle min for good squat
-        rep_percentage = np.interp(angle, (20, 110), (0, 100))
-        # print(angle, rep_percentage)
-
+        # Calc percentage of way through rep, based off knee angle; 105 knee angle min for good squat
+        # Old interp was (20, 110)
+        rep_percentage = np.interp(angle, (15, 105), (0, 100))
+        print("\nframe_num: " + str(frame_num))
+        print("direction: " + self.squat_direction)
+        print("rep_pct: "+str(rep_percentage))
         # Count the number of frames down to required depth the squatter takes
         if rep_percentage >= self.prev_rep_percentage - 0.5:
             if rep_percentage != 0:
+                self.up_count = 0
                 self.down_count += 1
         else:
-            self.down_count = 0
+            self.up_count += 1
+            # If the squatter has come up for more than 3 frames, reset down count; allows for noise
+            if self.up_count > 3:
+                print("reset down_count")
+                self.down_count = 0
+
+        print("down_count: "+str(self.down_count))
 
         if self.squat_direction == "Down":
             self.rep_top = frame_num - self.down_count
@@ -259,6 +274,8 @@ class PoseDetector:
         self.rep_frames[int(self.count + 1)] = {"Top": self.rep_top, "Middle": self.rep_middle,
                                                 "Bottom": self.rep_bottom}
 
+        print("rep_top: " + str(self.rep_top))
+
         # Check how far through rep squatter is
         if rep_percentage == 100:
             if self.squat_direction == "Down":
@@ -270,6 +287,7 @@ class PoseDetector:
                 self.squat_direction = "Down"
                 # Reset lowest squat pos angle and down_count for next rep
                 self.lowest_pos_angle = 0
+                print("reset down_count: 0")
                 self.down_count = 0
         # Set the previous rep_percentage for comparison with next frame to determine starting frame of squat
         self.prev_rep_percentage = rep_percentage
@@ -310,29 +328,35 @@ class PoseDetector:
             # convert the (x, y) coordinates and radius of the circles to integers
             circles = np.round(circles[0, :]).astype("int")
             for (x, y, r) in circles:
-                # If the center of the circle is in the top half of the frame
-                if y < height / 2:
+                # If the center of the circle is in the top three quarters of the frame
+                if y < (height / 4) * 3:
                     # If the center of the circle is within the detected person box
                     if box_x_min < x < box_x_max:
-                        cv2.circle(frame, (x, y), r, (0, 255, 0), 3)
-                        # cv2.circle(frame, (x, y), 2, (0, 0, 255), 3)
-                        if track:
-                            self.barbell_pts.appendleft((x, y))
+                        # Setup prev_plate_x_y for first use
+                        if self.prev_plate_x_y == (0, 0):
+                            self.prev_plate_x_y = (x, y)
+                        # Stop circle from jumping about; only let it detect another circle with radius distance
+                        if (x - self.prev_plate_x_y[0] < r) and (y - self.prev_plate_x_y[1] < r):
+                            # cv2.circle(frame, (x, y), r, (0, 255, 0), 3)
+                            self.prev_plate_x_y = (x, y)
+                            # cv2.circle(frame, (x, y), 2, (0, 0, 255), 3)
+                            if track:
+                                self.barbell_pts.appendleft((x, y))
         else:
             self.no_circle += 1
 
-    def draw_bar_path(self, frame):
+    def draw_bar_path(self, frame, no_circle=30):
         for i in range(1, len(self.barbell_pts)):
             # If either of the tracked points are None, ignore them
             if self.barbell_pts[i - 1] is None or self.barbell_pts[i] is None:
                 continue
             # If there has been a big x jump, or no circle detected for 10 frames, empty the queue
-            if (self.barbell_pts[i][0] - self.barbell_pts[i - 1][0] > 30) or self.no_circle > 10:
+            if (self.barbell_pts[i][0] - self.barbell_pts[i - 1][0] > 30) or self.no_circle > no_circle:
                 self.barbell_pts.clear()
                 break
             # Compute the thickness of the line and draw the connecting lines
             thickness = int(np.sqrt(self.barbell_pts_len / float(i + 1)) * 1.5)
-            cv2.line(frame, self.barbell_pts[i - 1], self.barbell_pts[i], (0, 0, 255), thickness)
+            cv2.line(frame, self.barbell_pts[i - 1], self.barbell_pts[i], (0, 0, 255), 5)
         return frame
 
     def add_dorsi_points(self, frame_num, draw=True):
@@ -361,8 +385,6 @@ class PoseDetector:
         knee_num = self.landmark_connections.KNEE_ANGLE_CONNECTIONS[1]
         hip_x, hip_y = self.pose_data[frame_num][1][hip_num][1:]
         knee_x, knee_y = self.pose_data[frame_num][1][knee_num][1:]
-        print(self.start_heel_toe)
-        print(frame_num)
         toe_x, toe_y = self.start_heel_toe[1]
         femur_len = math.hypot(knee_x - hip_x, knee_y - hip_y)
         vert_distance = toe_y - knee_y
@@ -377,6 +399,12 @@ class PoseDetector:
             dash_y += dash_len
         cv2.line(frame, (toe_x, toe_y), (toe_x + 5, toe_y), (255, 0, 0), 3)
 
+    def save_frame(self, rep_number, num, rep_position):
+        filename = "Output/Rep_" + str(rep_number) + "_" + rep_position + "_Frame.jpg"
+        img = self.pose_data[num][0]
+        img = cv2.resize(img, (self.original_size[1], self.original_size[0]))
+        cv2.imwrite(filename, img)
+
     def process_video(self, cap, seconds=3):
         fps = cap.get(cv2.CAP_PROP_FPS)
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -387,6 +415,7 @@ class PoseDetector:
         # Skip ahead x seconds. Default is 3. Ideally will have the user chose how long they need to setup
         # Can use this to process every x frames too?
         success, frame = cap.read()
+        self.original_size = frame.shape[:2]
         if success:
             if seconds > 0:
                 curr_frame = int(fps * seconds)
@@ -398,6 +427,14 @@ class PoseDetector:
         else:
             cap.release()
             return
+
+        # Get the resized frames dimension for video writing
+        frame = resize_frame(frame)
+        frame_height, frame_width = frame.shape[:2]
+        fps = float(round(fps))
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter("Output/Output_Full_Speed.mp4", fourcc, fps, (frame_width, frame_height))
+        out_slow = cv2.VideoWriter("Output/Output_Slow_Motion.mp4", fourcc, 10.0, (frame_width, frame_height))
 
         # Determine the orientation of the squatter so that the correct lines can be drawn and values stored
         success, frame = cap.read()
@@ -438,11 +475,15 @@ class PoseDetector:
                         cv2.FONT_HERSHEY_PLAIN, 2, (255, 255, 255), 2)
 
             # Detect barbell plates for path tracking
-            self.detect_plates(frame, 0.35, 0.45, track=True)
-            frame = self.draw_bar_path(frame)
+            self.detect_plates(frame, 0.30, 0.45, track=True)
+            # Draw bar path with a 30 no circle detection limit to reset tracking
+            frame = self.draw_bar_path(frame, no_circle=30)
 
             # Pin fps to frame
             prev_time = add_fps(frame, prev_time, frame_num)
+
+            out.write(frame)
+            out_slow.write(frame)
 
             cv2.imshow("Frame", frame)
             frame_num += 1
@@ -462,16 +503,21 @@ class PoseDetector:
                 p1, p2, p3 = self.landmark_connections.DORSI_ANGLE_CONNECTIONS
                 angle = self.find_angles(num, p1, p2, p3, knee=False, dorsi=True, draw=False)
                 self.pose_data[num][2]["Dorsi"] = angle
+                self.save_frame(rep_number, num, "Top")
                 cv2.imshow("Top rep " + str(rep_number), self.pose_data[num][0])
                 cv2.waitKey(1)
+
                 num = self.rep_frames[rep_number]["Middle"]
                 self.add_dorsi_points(num)
                 self.knee_tracking(num, dash_len=7)
+                self.save_frame(rep_number, num, "Middle")
                 cv2.imshow("Middle rep " + str(rep_number), self.pose_data[num][0])
                 cv2.waitKey(1)
+
                 num = self.rep_frames[rep_number]["Bottom"]
                 self.add_dorsi_points(num)
                 self.knee_tracking(num, dash_len=7)
+                self.save_frame(rep_number, num, "Bottom")
                 cv2.imshow("Bottom rep " + str(rep_number), self.pose_data[num][0])
                 key = cv2.waitKey(1)
             if key == 'q' or key == 27:
@@ -495,6 +541,7 @@ def main():
     # cap = cv2.VideoCapture('Videos/AC_BS3L.mp4')
     # cap = cv2.VideoCapture('Videos/AC_BS4L.mp4')
     # cap = cv2.VideoCapture('Videos/AC_FSL.mp4')
+    cap = cv2.VideoCapture('Videos/JM_BSL.mp4')
     # cap = cv2.VideoCapture(0)
 
     detector = PoseDetector()
