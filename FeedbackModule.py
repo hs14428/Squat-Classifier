@@ -16,8 +16,7 @@ def check_knee_angle(rep_frames, pose_data, rep_number, frame_position, face_rig
                 return "Your legs are too straight and risk damage if you hyperextend your knees, remember to keep a " \
                        "slight bend in your knees."
             elif 10 <= knee_angle < 15:
-                return "Ok bend in the knee, but don't straighten the knees anymore or you might risk hyperextension " \
-                       "hyperextension."
+                return "Ok bend in the knee, but don't straighten the knees anymore or you might risk hyperextension."
             elif knee_angle >= 15:
                 return "Good bend in the knee. Remember to keep your head neutral and inline with torso."
 
@@ -27,7 +26,7 @@ def check_knee_angle(rep_frames, pose_data, rep_number, frame_position, face_rig
             knee_angle_comp = 180 - knee_angle
             diff = abs(hip_angle - knee_angle_comp)
             if diff < 5:
-                return "Spot on. This descent positioning looks great. your hips and knees are hinging in sync and your " \
+                return "Spot on. This descent positioning looks great. Your hips and knees are hinging in sync and you're " \
                        "transferring the forces through your body evenly and safely. "
             elif 5 <= diff < 10:
                 return "Good job! Your descent positioning looks good. Your knees and hips are mostly hinging in sync " \
@@ -38,7 +37,6 @@ def check_knee_angle(rep_frames, pose_data, rep_number, frame_position, face_rig
                        "parallel and look like a lightning bolt."
 
         if frame_position == "Bottom":
-            # frame_num = rep_frames[rep_number][frame_position]
             if face_right:
                 knee_num = landmark_connections.RIGHT_KNEE
                 hip_num = landmark_connections.RIGHT_HIP
@@ -52,7 +50,7 @@ def check_knee_angle(rep_frames, pose_data, rep_number, frame_position, face_rig
                 return "Your squat hasn't reached sufficient depth to be considered a full rep. If this problem persists, " \
                        "try lowering the weight until you can hit depth, or work on your ankle mobility "
             elif 100 <= knee_angle < 110:
-                return "Your squat is not quite deep enough for maximal muscle activation. At little bit deeper next time!"
+                return "Good depth, but for maximal muscle activation try and get a little bit deeper next time!"
             elif 110 <= knee_angle <= 125:
                 return "Nice work! You hit correct depth and so are getting maximal muscle activation. Your thighs are " \
                        "parallel with your hip crease and in roughly line with your knees. Keep it up."
@@ -66,9 +64,11 @@ def check_knee_angle(rep_frames, pose_data, rep_number, frame_position, face_rig
                 else:
                     return "Nice work! You hit correct depth and so are getting maximal muscle activation. Your thighs are " \
                            "parallel with your hip crease and in roughly line with your knees. Keep it up."
+            else:
+                return "You're really deep! I hope you are an olympic lifter or you might have hurt your self!?"
     else:
-        return "Error processing this frame" \
-               ""
+        return "Error processing this frame"
+
 
 def check_hip_angle(rep_frames, pose_data, rep_number, frame_position):
     frame_num = rep_frames[rep_number][frame_position]
@@ -82,10 +82,10 @@ def check_hip_angle(rep_frames, pose_data, rep_number, frame_position):
                 return "Hip's all good."
 
         if frame_position == "Middle":
-            if hip_angle > 95:
-                return "Try not to keep such an upright position in your descent. Lowering with an upright back can lead " \
-                       "to over compensation when hinging at the hips when nearing depth.\nRemember to stick your butt " \
-                       "out and bend your knees as you descend. "
+            if hip_angle > 110:
+                return "If you're quite tall, this looks fine. Otherwise, try not to keep such an upright position in "\
+                       "your descent. Lowering with an upright back can lead to over compensation when hinging at the "\
+                       "hips when nearing depth. Remember to stick your butt out and bend your knees as you descend. "
             else:
                 return "Good descent positioning."
 
@@ -93,10 +93,13 @@ def check_hip_angle(rep_frames, pose_data, rep_number, frame_position):
             if hip_angle < 40:
                 return "Looks like you might be hinging too far forward here... Beware of toppling over."
             elif 45 <= hip_angle <= 70:
-                return "Good hip hinge at depth. Remember, different body types have different optimal hip/back angles, " \
-                       "but don't lean too far forward and keep the barbell centered over your feet."
-            elif hip_angle > 70:
-                return "Watch your hip/back angle. You look quite upright; you might be at risk of falling backwards."
+                return "Good hip hinge at depth. Remember, different body types have different optimal hip/back " \
+                       "angles, but don't lean too far forward and keep the barbell centered over your feet."
+            elif 75 < hip_angle <= 80:
+                return "If you are a tall person, hip hinge looks good. Otherwise you might be a bit too upright. "
+            elif hip_angle > 80:
+                return "Watch your hip/back angle. You look quite upright and you might be at risk of falling " \
+                       "backwards. "
     else:
         return "Error processing this frame"
 

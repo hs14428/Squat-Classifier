@@ -34,6 +34,7 @@ def resize_frame(frame):
     # Manual resize for testing
     if h == 1280:
         frame = cv2.resize(frame, (480, 848))
+    print("Frame dim: h:" + str(frame.shape[0]) + " w: " + str(frame.shape[1]))
     return frame
 
 
@@ -271,7 +272,8 @@ class PoseDetector:
     def rep_counter(self, angle, frame_num):
         # Calc percentage of way through rep, based off knee angle; 105 knee angle min for good squat
         # Old interp was (20, 110)
-        rep_percentage = np.interp(angle, (17, 105), (0, 100))
+        # rep_percentage = np.interp(angle, (17, 105), (0, 100))
+        rep_percentage = np.interp(angle, (17, 85), (0, 100))
         print("\nframe_num: " + str(frame_num))
         print("direction: " + self.squat_direction)
         print("rep_pct: " + str(rep_percentage))
@@ -355,7 +357,7 @@ class PoseDetector:
             # convert the (x, y) coordinates and radius of the circles to integers
             circles = np.round(circles[0, :]).astype("int")
             for (x, y, r) in circles:
-                cv2.circle(frame, (x, y), r, (0, 255, 0), 3)
+                # cv2.circle(frame, (x, y), r, (0, 255, 0), 3)
                 if self.start <= frame_num <= self.end:
                     self.plate_detect_count_total += 1
                 # If the center of the circle is in the top three quarters of the frame
@@ -370,48 +372,44 @@ class PoseDetector:
                             self.no_track = 0
                             a = (x, y)
                             b = self.prev_plate_x_y
-                            print("a: " + str(a))
-                            print("b: " + str(b))
                             self.prev_plate_x_y = (x, y)
                             if self.start <= frame_num <= self.end:
                                 self.plate_detect_count_good += 1
                                 self.plate_radius += r
                                 self.plate_euclidean_dist += math.hypot(a[0] - b[0], a[1] - b[1])
-                                print("eucli frame: " + str(math.hypot(a[0] - b[0], a[1] - b[1])))
-                                print("eucli avg count_good: " + str(
-                                    self.plate_euclidean_dist / self.plate_detect_count_good))
                             # GW_BS1L
                             # if frame_num == 482 or frame_num == 604 or frame_num == 708 or frame_num == 812 or frame_num == 920:
                             # GW_BS2L
-                            if frame_num == 617 or frame_num == 729 or frame_num == 848:
-                                # GW_BS3L
-                                # if frame_num == 462 or frame_num == 581 or frame_num == 689 or frame_num == 789 or frame_num == 898:
-                                # AC_BS4L
-                                # if frame_num == 462 or frame_num == 581 or frame_num == 689 or frame_num == 789 or frame_num == 898:
-                                # JM_BSL
-                                # if frame_num == 164 or frame_num == 257 or frame_num == 360 or frame_num == 455:
-                                # JM_BSLB
-                                # if frame_num == 155 or frame_num == 253 or frame_num == 367:
+                            # if frame_num == 617 or frame_num == 729 or frame_num == 848:
+                            # GW_BS3L
+                            # if frame_num == 462 or frame_num == 581 or frame_num == 689 or frame_num == 789 or frame_num == 898:
+                            # JM_BSL
+                            # if frame_num == 164 or frame_num == 257 or frame_num == 360 or frame_num == 455:
+                            # JM_BSLB
+                            # if frame_num == 155 or frame_num == 253 or frame_num == 367:
+                            # AC_BS4L
+                            # if frame_num == 462 or frame_num == 581 or frame_num == 689 or frame_num == 789 or frame_num == 898:
+                            # HS_BS2L_Wide
+                            # if frame_num == 365 or frame_num == 448 or frame_num == 526:
+                            # HS_BS3L
+                            if frame_num == 483 or frame_num == 566 or frame_num == 650 or frame_num == 731:
                                 print("frame: " + str(frame_num) + " - " + str(r))
                                 self.plate_bottom_radius += r
                             if draw:
                                 cv2.circle(frame, (x, y), r, (0, 255, 0), 3)
                                 cv2.circle(frame, (x, y), 2, (0, 0, 255), 3)
                             if track:
-                                print("frame_num: " + str(frame_num) + " in-track: yes")
                                 self.barbell_pts.appendleft((x, y))
                         else:
                             self.no_track += 1
         else:
             self.no_circle += 1
-        cv2.putText(frame, "Good: " + str(self.plate_detect_count_good), (5, 180),
-                    cv2.FONT_HERSHEY_PLAIN, 2, (255, 255, 255), 2)
-        cv2.putText(frame, "Total: " + str(self.plate_detect_count_total), (5, 210),
-                    cv2.FONT_HERSHEY_PLAIN, 2, (255, 255, 255), 2)
+        # cv2.putText(frame, "Good: " + str(self.plate_detect_count_good), (5, 180),
+        #             cv2.FONT_HERSHEY_PLAIN, 2, (255, 255, 255), 2)
+        # cv2.putText(frame, "Total: " + str(self.plate_detect_count_total), (5, 210),
+        #             cv2.FONT_HERSHEY_PLAIN, 2, (255, 255, 255), 2)
 
     def draw_bar_path(self, frame, no_circle=30):
-        print("bb pts len: " + str(len(self.barbell_pts)))
-        print("no_circle: " + str(self.no_circle))
         for i in range(1, len(self.barbell_pts)):
             # If either of the tracked points are None, ignore them
             if self.barbell_pts[i - 1] is None or self.barbell_pts[i] is None:
@@ -465,7 +463,12 @@ class PoseDetector:
             knee_num = self.landmark_connections.KNEE_ANGLE_CONNECTIONS[1]
             hip_x, hip_y = self.pose_data[frame_num][1][hip_num][1:]
             knee_x, knee_y = self.pose_data[frame_num][1][knee_num][1:]
-            toe_x, toe_y = self.start_heel_toe[1]
+            # If no starting heel toe coordinates saved down
+            if len(self.start_heel_toe) == 2:
+                toe_x, toe_y = self.start_heel_toe[1]
+            else:
+                toe_num = self.landmark_connections.DORSI_ANGLE_CONNECTIONS[2]
+                toe_x, toe_y = self.pose_data[frame_num][1][toe_num][1:]
             femur_len = math.hypot(knee_x - hip_x, knee_y - hip_y)
             vert_distance = toe_y - knee_y
             # Add extra dashes to make sure its clearer where the knee line falls.
@@ -488,7 +491,8 @@ class PoseDetector:
         filename = "Output/Rep_" + str(rep_number) + "_" + rep_position + "_Frame.jpg"
         if num in self.pose_data.keys():
             img = self.pose_data[num][0]
-            img = cv2.resize(img, (self.original_size[1], self.original_size[0]))
+            # Resize frame back to original frame size
+            # img = cv2.resize(img, (self.original_size[1], self.original_size[0]))
             cv2.imwrite(filename, img)
 
     def process_video(self, cap, webcam=False, seconds=3):
@@ -526,7 +530,7 @@ class PoseDetector:
         # Add save date to end of name to distinguish
         # Output annotates videos; normal fps and slow mo
         out = cv2.VideoWriter("Output/Output_Full_Speed.mp4", fourcc, fps, (frame_width, frame_height))
-        out_slow = cv2.VideoWriter("Output/Output_Slow_Motion.mp4", fourcc, 10.0, (frame_width, frame_height))
+        out_slow = cv2.VideoWriter("Output/Output_Slow_Motion.mp4", fourcc, 5.0, (frame_width, frame_height))
 
         # Determine the orientation of the squatter so that the correct lines can be drawn and values stored
         success, frame = cap.read()
@@ -569,9 +573,9 @@ class PoseDetector:
 
             # Detect barbell plates for path tracking
             # Remember to remove frame_num from evaluation
-            self.start = 540
-            self.end = 890
-            self.detect_plates(frame, 0.30, 0.50, frame_num, track=True, draw=True)
+            self.start = 444
+            self.end = 756
+            self.detect_plates(frame, 0.30, 0.50, frame_num, track=True, draw=False)
             # Draw bar path with a 30 no circle detection limit to reset tracking
             frame = self.draw_bar_path(frame, no_circle=30)
 
@@ -649,14 +653,14 @@ def main():
     # cap = cv2.VideoCapture('Videos/many_circles_squats.mp4')
     # cap = cv2.VideoCapture('Videos/How_To_Barbell_Squat_3GOLDEN_RULES!_cut.mp4')
     # cap = cv2.VideoCapture('Videos/GW_BS1L.mp4')
-    cap = cv2.VideoCapture('Videos/GW_BS2L.mp4')
+    # cap = cv2.VideoCapture('Videos/GW_BS2L.mp4')
     # cap = cv2.VideoCapture('Videos/GW_BS2L_flip.mp4')
     # cap = cv2.VideoCapture('Videos/GW_BS3L.mp4')
     # cap = cv2.VideoCapture('Videos/GW_BSEL.mp4')
     # cap = cv2.VideoCapture('Videos/AC_BS.mp4')
     # cap = cv2.VideoCapture('Videos/AC_BS2L.mp4')
     # cap = cv2.VideoCapture('Videos/AC_BS3L.mp4')
-    # cap = cv2.VideoCapture('Videos/AC_BS4L.mp4')
+    cap = cv2.VideoCapture('Videos/AC_BS4L.mp4')
     # cap = cv2.VideoCapture('Videos/AC_BS5L.mp4')
     # cap = cv2.VideoCapture('Videos/AC_BS6L.mp4')
     # cap = cv2.VideoCapture('Videos/AC_BS7L.mp4')
@@ -665,12 +669,15 @@ def main():
     # cap = cv2.VideoCapture('Videos/JM_BSL.mp4')
     # cap = cv2.VideoCapture('Videos/JM_BSLB.mp4')
     # cap = cv2.VideoCapture('Videos/HS_BS1L_OOS.mp4')  # Shit shoulder predictions when descending but makes grabs fine
-    # cap = cv2.VideoCapture('Videos/HS_BS2L_Wide.mp4')  # Error on first rep but very good barbell tracking
-    cap = cv2.VideoCapture('Videos/HS_BS3L.mp4')
+    # cap = cv2.VideoCapture('Videos/HS_BS2L_Wide.mp4')  # Error on first rep but v good tracking
+    cap = cv2.VideoCapture('Videos/HS_BS3L.mp4')  # V good overall w/ v good tracking
     # cap = cv2.VideoCapture('Videos/HS_BS4L_OOS.mp4')
     # cap = cv2.VideoCapture('Videos/HS_BS5L_Up.mp4')
     # cap = cv2.VideoCapture('Videos/HS_Bad1.mp4')
     # cap = cv2.VideoCapture('Videos/HS_Bad2.mp4')
+    # cap = cv2.VideoCapture('Videos/OD_BS1L_Face.mp4')  # Bad start
+    # cap = cv2.VideoCapture('Videos/OD_BS2L.mp4')
+    # cap = cv2.VideoCapture('Videos/BP_BS1L.mp4')
     # cap = cv2.VideoCapture(0)
 
     if cap.isOpened():
@@ -680,37 +687,39 @@ def main():
     else:
         print("Failed to load video")
         return "Failure"
-    rep_number = 1  # Add a loop when needing to evaluate all reps
 
-    # Squat start feedback
-    knees_start_message = fm.check_knee_angle(rep_frames, pose_data, rep_number, "Top", face_right)
-    hips_start_message = fm.check_hip_angle(rep_frames, pose_data, rep_number, "Top")
-    ankle_start_message = fm.check_dorsi_flexion(rep_frames, pose_data, rep_number, "Top")
-    print("Starting position feedback - Rep", rep_number, ":")
-    print("Knees -", knees_start_message, "\nHips -", hips_start_message)
-    if ankle_start_message is not None:
-        print("Ankles -", ankle_start_message)
+    for rep_number in rep_frames:
+        # rep_number = 1  # Add a loop when needing to evaluate all reps
 
-    # Squat lowering feedback
-    hips_lowering_message = fm.check_hip_angle(rep_frames, pose_data, rep_number, "Middle")
-    overall_position_message = fm.check_knee_angle(rep_frames, pose_data, rep_number, "Middle")
-    print("\nSquat lowering phase feedback:")
-    print("Overall positioning -", overall_position_message)
-    print("Hips -", hips_lowering_message)
+        # Squat start feedback
+        knees_start_message = fm.check_knee_angle(rep_frames, pose_data, rep_number, "Top", face_right)
+        hips_start_message = fm.check_hip_angle(rep_frames, pose_data, rep_number, "Top")
+        ankle_start_message = fm.check_dorsi_flexion(rep_frames, pose_data, rep_number, "Top")
+        print("Starting position feedback - Rep", rep_number, ":")
+        print("Knees -", knees_start_message, "\nHips -", hips_start_message)
+        if ankle_start_message is not None:
+            print("Ankles -", ankle_start_message)
 
-    # Squat depth feedback
-    knees_depth_message = fm.check_knee_angle(rep_frames, pose_data, rep_number, "Bottom", face_right)
-    hips_depth_message = fm.check_hip_angle(rep_frames, pose_data, rep_number, "Bottom")
-    print("\nSquat depth feedback:")
-    print("Depth -", knees_depth_message, "\nHips -", hips_depth_message)
+        # Squat lowering feedback
+        hips_lowering_message = fm.check_hip_angle(rep_frames, pose_data, rep_number, "Middle")
+        overall_position_message = fm.check_knee_angle(rep_frames, pose_data, rep_number, "Middle")
+        print("\nSquat lowering phase feedback - Rep", rep_number, ":")
+        print("Overall positioning -", overall_position_message)
+        print("Hips -", hips_lowering_message)
 
-    # Additional feedback, e.g. ankles and knee tracking
-    dorsi_depth_message = fm.check_dorsi_flexion(rep_frames, pose_data, rep_number, "Bottom")
-    knee_tracking_message = fm.check_knee_tracking(rep_frames, pose_data, rep_number, "Bottom", start_heel_toe,
-                                                   face_right)
-    print("\nNow lets look at some other aspects of your squat:")
-    print("Ankle dorsiflexion -", dorsi_depth_message)
-    print("Knee tracking -", knee_tracking_message)
+        # Squat depth feedback
+        knees_depth_message = fm.check_knee_angle(rep_frames, pose_data, rep_number, "Bottom", face_right)
+        hips_depth_message = fm.check_hip_angle(rep_frames, pose_data, rep_number, "Bottom")
+        print("\nSquat depth feedback - Rep", rep_number, ":")
+        print("Depth -", knees_depth_message, "\nHips -", hips_depth_message)
+
+        # Additional feedback, e.g. ankles and knee tracking
+        dorsi_depth_message = fm.check_dorsi_flexion(rep_frames, pose_data, rep_number, "Bottom")
+        knee_tracking_message = fm.check_knee_tracking(rep_frames, pose_data, rep_number, "Bottom", start_heel_toe,
+                                                       face_right)
+        print("\nNow lets look at some other aspects of your squat - Rep", rep_number, ":")
+        print("Ankle dorsiflexion -", dorsi_depth_message)
+        print("Knee tracking -", knee_tracking_message)
     return "Analysis successfully run."
 
     # Add elbow position feedback?
