@@ -30,6 +30,7 @@ public class API_GET {
                 new InputStreamReader(connection.getInputStream()));
         String inputLine;
         StringBuffer response = new StringBuffer();
+        System.out.println();
 
         while ((inputLine = in.readLine()) != null) {
             response.append(inputLine);

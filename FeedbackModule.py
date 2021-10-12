@@ -1,9 +1,6 @@
-import PoseModule as pm
 import PoseLandmark as pl
 
 
-# https://blog.nasm.org/biomechanics-of-the-squat good info about restricting knee angle if have knee injury history.
-# Individuals with a history of patellofemoral injury should limit the depth of their squat.
 def check_knee_angle(rep_frames, pose_data, rep_number, frame_position, face_right=True):
     landmark_connections = pl.PoseLandmark(face_right=face_right, filter_landmarks=True)
     frame_num = rep_frames[rep_number][frame_position]
@@ -15,12 +12,11 @@ def check_knee_angle(rep_frames, pose_data, rep_number, frame_position, face_rig
             elif 0 <= knee_angle < 10:
                 return "Your legs are too straight and risk damage if you hyperextend your knees, remember to keep a " \
                        "slight bend in your knees."
-            elif 10 <= knee_angle < 15:
+            elif 10 <= knee_angle < 12:
                 return "Ok bend in the knee, but don't straighten the knees anymore or you might risk hyperextension."
-            elif knee_angle >= 15:
+            elif knee_angle >= 12:
                 return "Good bend in the knee. Remember to keep your head neutral and inline with torso."
 
-        # Add a knee angle check to compare with hip for the lightning bolt
         if frame_position == "Middle":
             hip_angle = pose_data[frame_num][2]["Hip"]
             knee_angle_comp = 180 - knee_angle
